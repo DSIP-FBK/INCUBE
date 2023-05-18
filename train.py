@@ -11,10 +11,19 @@ import numpy as np
 import plotly.express as px
 import logging
 import sys
+from load_data.load_data_edison import load_data_edison
+from load_data.load_data_public import load_data_public
+from load_data.load_data_incube import load_data_incube
 
+#file_handler = logging.FileHandler(filename='tmp.log')
+#stdout_handler = logging.StreamHandler(stream=sys.stdout)
+#handlers = [file_handler, stdout_handler]
 
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO, 
+ #   format='[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s',
+ #   handlers=handlers
+)
 
 
 
@@ -53,25 +62,15 @@ def train(conf: DictConfig) -> None:
     ##OCCHIO CHE tutti questi dataset hanno y come target! ###############################################
     
     
-    
-    
-    if conf.dataset.dataset == 'incube':
-        data = pd.read_csv(os.path.join(conf.dataset.path,'data_consumption.csv'))
-        data.Time = pd.to_datetime(data.Time)
-        data.sort_values(by='Time',inplace=True)
-
-        data_ex = data[data.PlantId==26913041]
-        data_ex.rename(columns={'Time':'time'},inplace=True)
-        data_ex.Value[data_ex.Value<0]=np.nan
-        data_ex.Value = np.log(data_ex.Value+1)
-        data_ex = data_ex.groupby('time').mean().reset_index()
-        data_ex.index = data_ex.time
-        data_ex = data_ex.resample('1h').mean().reset_index()
-        ts = TimeSeries(conf.ts.name)
-        ts.load_signal(data_ex,past_variables =['Value'],future_variables = [],target_variables =['Value'],enrich_cat=['dow','hour','month'])
+    if conf.dataset.dataset == 'edison':
+        ts = load_data_edison(conf)
+    elif conf.dataset.dataset == 'incube': 
+        ts = load_data_incube(conf)
     else:
-        print('ERROR')
-        ######################################################################################################
+        ts = load_data_public(conf)
+        
+
+    ######################################################################################################
     
     
     model_conf = conf.model_configs
@@ -138,7 +137,7 @@ def train(conf: DictConfig) -> None:
     retrain = True
     ##if there is a model file look if you want to retrain it
     if os.path.exists(os.path.join(dirpath,'model.pkl')):
-        if conf.model.get('retrain',True):
+        if conf.model.get('retrain',False):
             pass
         else:
             retrain = False
@@ -163,6 +162,8 @@ def train(conf: DictConfig) -> None:
     split_params = conf.split_params
     split_params['past_steps'] = model_conf['past_steps']
     split_params['future_steps'] = model_conf['future_steps']
+    ## I save it here so i can use intermediate pth weights!
+    ts.save(os.path.join(conf.train_config.dirpath,'model'))
     valid_loss = ts.train_model(split_params=split_params,**conf.train_config)
     ts.save(os.path.join(conf.train_config.dirpath,'model'))
     ##save the config for the comparison task
@@ -186,7 +187,3 @@ if __name__ == '__main__':
     if os.path.exists('outputs'):
         shutil.rmtree('outputs', ignore_errors=True)
     val_loss
-
-
-
-
