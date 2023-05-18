@@ -11,9 +11,7 @@ import numpy as np
 import plotly.express as px
 import logging
 import sys
-from load_data.load_data_edison import load_data_edison
-from load_data.load_data_public import load_data_public
-from load_data.load_data_incube import load_data_incube
+
 
 #file_handler = logging.FileHandler(filename='tmp.log')
 #stdout_handler = logging.StreamHandler(stream=sys.stdout)
@@ -63,12 +61,13 @@ def train(conf: DictConfig) -> None:
     
     
     if conf.dataset.dataset == 'edison':
-        ts = load_data_edison(conf)
+        from load_data.load_data_edison import load_data
     elif conf.dataset.dataset == 'incube': 
-        ts = load_data_incube(conf)
+        from load_data.load_data_incube import load_data
     else:
-        ts = load_data_public(conf)
+        from load_data.load_data_public import load_data
         
+    ts = load_data(conf)
 
     ######################################################################################################
     
