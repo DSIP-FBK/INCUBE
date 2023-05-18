@@ -162,7 +162,7 @@ def train(conf: DictConfig) -> None:
     split_params['past_steps'] = model_conf['past_steps']
     split_params['future_steps'] = model_conf['future_steps']
     ## I save it here so i can use intermediate pth weights!
-    ts.save(os.path.join(conf.train_config.dirpath,'model'))
+    #ts.save(os.path.join(conf.train_config.dirpath,'model'))
     valid_loss = ts.train_model(split_params=split_params,**conf.train_config)
     ts.save(os.path.join(conf.train_config.dirpath,'model'))
     ##save the config for the comparison task
