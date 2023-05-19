@@ -2,12 +2,13 @@
 import argparse
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
+from hydra.core.hydra_config import HydraConfig
 import os
 import numpy as np
 import plotly.express as px
 import logging
 from inference import inference
-
+import hydra
 
 logging.basicConfig(
     level=logging.INFO, 
@@ -16,7 +17,7 @@ logging.basicConfig(
 
 
 
-
+@hydra.main(version_base=None)
 def compare(conf:DictConfig)-> None:
     """Compare all the models specified
 
@@ -123,11 +124,11 @@ def compare(conf:DictConfig)-> None:
     
 if __name__ == '__main__': 
  
-    parser = argparse.ArgumentParser(description="Train TS models")
-    parser.add_argument("-c", "--config", type=str, help="configurastion file")
-    args = parser.parse_args()
-    conf = OmegaConf.load(args.config) 
-
-    compare(conf)
+    parser = argparse.ArgumentParser(description="Compare TS models")
+    #parser.add_argument("-c", "--config", type=str, help="configurastion file")
+    #args = parser.parse_args()
+    #conf = OmegaConf.load(args.config) 
+    compare()
+    #compare(conf)
         
   

@@ -11,7 +11,6 @@ import plotly.express as px
 from sklearn.metrics import mean_squared_error
 from typing import List
 
-
 def rmse(x:np.array,y:np.array)->float:
     """custom RMSE avoinding nan
 
@@ -72,23 +71,17 @@ def inference(conf:DictConfig)->List[pd.DataFrame]:
             res : containing the predictions
             losses : containing the losses during the train
     """
-    ##OCCHIO CHE tutti questi dataset hanno y come target! ###############################################
-    if conf.dataset.dataset == 'incube':
-        data = pd.read_csv(os.path.join(conf.dataset.path,'data_consumption.csv'))
-        data.Time = pd.to_datetime(data.Time)
-        data.sort_values(by='Time',inplace=True)
-
-        data_ex = data[data.PlantId==26913041]
-        data_ex.rename(columns={'Time':'time'},inplace=True)
-        data_ex.Value[data_ex.Value<0]=np.nan
-        data_ex.Value = np.log(data_ex.Value+1)
-        data_ex = data_ex.groupby('time').mean().reset_index()
-        data_ex.index = data_ex.time
-        data_ex = data_ex.resample('1h').mean().reset_index()
-        ts = TimeSeries(conf.ts.name)
-        ts.load_signal(data_ex,past_variables =['Value'],future_variables = [],target_variables =['Value'],enrich_cat=['dow','hour','month'])
+    if conf.dataset.dataset == 'edison':
+        from load_data.load_data_edison import load_data
+    elif conf.dataset.dataset == 'incube': 
+        from load_data.load_data_incube import load_data
     else:
-        print("ERROR")
+        from load_data.load_data_public import load_data
+    ts = load_data(conf)
+
+    #data, columns = read_public_dataset(**conf.dataset)
+    #ts = TimeSeries(conf.ts.name)
+    #ts.load_signal(data, enrich_cat= conf.ts.enrich,target_variables=['y'], past_variables=columns)
     ######################################################################################################
     
 
