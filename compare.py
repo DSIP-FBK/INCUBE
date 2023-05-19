@@ -49,6 +49,8 @@ def compare(conf:DictConfig)-> None:
         conf_tmp =  OmegaConf.load(conf_tmp) 
         conf_tmp.inference.set = conf.set
         conf_tmp.inference.rescaling = conf.rescaling
+        conf_tmp.inference.batch_size = conf.get('batch_size',conf_tmp.inference.batch_size)
+
         logging.info(f"{''.join(['#']*200)}")
         logging.info(f"{''.join([' ']*200)}")
         logging.info(f'#####################PROCESSING {conf_tmp.model.type}_{conf_tmp.ts.name}_{conf_tmp.ts.version} ############## ')
