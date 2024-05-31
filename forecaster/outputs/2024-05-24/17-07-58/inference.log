@@ -1,0 +1,10 @@
+[2024-05-24 17:07:58,289][root][INFO] -     Can   handle multivariate output 
+Can NOT  handle future covariates
+Can   handle categorical covariates
+Can NOT  handle Quantile loss function    
+[2024-05-24 17:07:58,391][root][INFO] -     Can   handle multivariate output 
+Can NOT  handle future covariates
+Can   handle categorical covariates
+Can NOT  handle Quantile loss function    
+[2024-05-24 17:16:05,070][root][INFO] -                                                WARNING x_num_future_samples is empty and it should not                                                
+[2024-05-24 17:16:32,351][root][INFO] -                                                WARNING x_num_future_samples is empty and it should not                                                

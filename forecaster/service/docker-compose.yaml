@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  web:
+    build: 
+      context: .
+      args: 
+        TOKEN_DSIPTS: ${TOKEN_DSIPTS}
+    container_name: fastapi-app
+    ports:
+      - "80:80"
+    volumes:
+      - /home/agobbi/Projects/Incube/forecaster/data:/home/agobbi/Projects/Incube/forecaster/data:z
+    environment:
+      - TOKEN_DSIPTS=${TOKEN_DSIPTS}
+    stdin_open: true
+    tty: true

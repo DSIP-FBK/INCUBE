@@ -1,0 +1,15 @@
+[2024-05-24 16:52:32,579][root][INFO] -     Can   handle multivariate output 
+Can NOT  handle future covariates
+Can   handle categorical covariates
+Can NOT  handle Quantile loss function    
+[2024-05-24 16:52:32,860][root][INFO] - <class 'torch.optim.adam.Adam'>
+[2024-05-24 16:52:33,538][root][INFO] -                                                Epoch: 0 train error: -100.0000 validation loss: 46.4331                                               
+[2024-05-24 16:52:43,939][root][INFO] -                                                Epoch: 0 train error: -100.0000 validation loss: 40.9859                                               
+[2024-05-24 16:52:44,136][root][INFO] - <class 'torch.optim.adam.Adam'>
+[2024-05-24 16:52:44,157][root][INFO] -                                                 Epoch: 2 train error: 68.8920 validation loss: 49.2641                                                
+[2024-05-24 16:52:47,450][root][INFO] -                                                 Epoch: 2 train error: 68.8920 validation loss: 20.6167                                                
+[2024-05-24 16:52:50,778][root][INFO] -                                                 Epoch: 3 train error: 31.5075 validation loss: 19.3154                                                
+[2024-05-24 16:52:50,797][root][INFO] -     Can   handle multivariate output 
+Can NOT  handle future covariates
+Can   handle categorical covariates
+Can NOT  handle Quantile loss function    
