@@ -1,5 +1,0 @@
-[2024-05-24 16:51:30,920][root][INFO] -     Can   handle multivariate output 
-Can NOT  handle future covariates
-Can   handle categorical covariates
-Can NOT  handle Quantile loss function    
-[2024-05-24 16:51:31,243][root][INFO] - <class 'torch.optim.adam.Adam'>

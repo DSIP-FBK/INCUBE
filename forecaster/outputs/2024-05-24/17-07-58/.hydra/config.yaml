@@ -1,8 +1,0 @@
-main:
-  name: toy
-  end_point: /home/agobbi/Projects/Incube/forecaster/data/toy.csv
-  main_folder: /home/agobbi/Projects/Incube/forecaster/data/outputs
-  version: 1
-inference:
-  start_date: '2023-02-21 19:00:00'
-  load_last: true

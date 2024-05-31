@@ -1,4 +1,0 @@
-[2024-05-23 18:37:12,226][root][INFO] -     Can   handle multivariate output 
-Can NOT  handle future covariates
-Can   handle categorical covariates
-Can NOT  handle Quantile loss function    
