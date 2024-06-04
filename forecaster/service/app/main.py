@@ -9,11 +9,11 @@ import pandas as pd
 import numpy as np
 import os
 import shutil
-import logging
+from app.src.data_management import logger
 import traceback
+import requests
+from datetime import datetime
 
-
-logger = logging.getLogger("uvicorn.error")
 app = FastAPI()
 
 
@@ -108,15 +108,79 @@ async def forecast_not_possible_handler(request: Request, exc: ForecastNotPossib
 
 ###########################################EOF definition###################################################
 
+def get_model_name(conf:DictConfig):
+    return f'{conf.main.end_point.parameters.buildingName}_{conf.main.end_point.parameters.spaceName}_{conf.main.end_point.parameters.sourceId}_{conf.main.name}_{conf.main.version}'
+
+def send_to_logbook(data:pd.DataFrame,conf:DictConfig):
+    
+    content = []
+    for index, row in data.iterrows():
+        content.append(dict(description= conf.main.end_point.parameters.content_description,
+                            property = conf.main.end_point.parameters.property,
+                            value = np.round(row['y'],2) ,
+                            unitOfMeasure=conf.main.end_point.parameters.unitOfMeasure,
+                            refDateTime = row['time'],
+                            metadata = dict(y_low = np.round(row['y_low'],2),
+                                        y_high = np.round(row['y_high'],2),
+                                        lag = row['lag'],
+                                        prediction_time =row['prediction_time']
+                            )
+                            ))
+    
+    res = dict(id="",
+                          type = conf.main.end_point.parameters.type,
+                          description= conf.main.end_point.parameters.description,
+                          dateTime=  datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
+                          sourceId= conf.main.end_point.parameters.sourceId,
+                          buildingName= conf.main.end_point.parameters.buildingName,
+                          spaceName= conf.main.end_point.parameters.spaceName,
+                          content=content
+                          )
+
+
+    headers = {'Content-Type': 'application/json'}
+    res = json.dumps({'site': conf.main.end_point.parameters.site,'event':res})
+    if conf.main.end_point.send_to_logbook:
+        response = requests.request("POST", conf.main.end_point.result_url, headers=headers, data=res)
+        logger.info(f'logbook sending response {response.json()}')
+
+      
+
+
+
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
 
 
 def send_notification(conf:DictConfig,message:str):
-    #TODO send somewhere the notification that the model has been trained
-    logger.info(message)
-    pass
+    to_send = {
+            "id": "",
+            "type": "Notification",
+            "description": f"Model {get_model_name(conf)} trained correctly",
+            "dateTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
+            "sourceId": conf.main.end_point.parameters.sourceId,
+            "buildingName": conf.main.end_point.parameters.buildingName,
+            "spaceName": conf.main.end_point.parameters.spaceName,
+            "content": [
+            {
+                "category": "Notification",
+                "priority": "<Normal>",
+                "topic": "Model trained notification",
+                "text": message,
+                "metadata": {
+                    "destination": "Everyone"	
+                }
+            }
+            ]
+        }
+        
+    res = json.dumps({'site': conf.main.end_point.parameters.site,'event':to_send})
+    
+    headers = {'Content-Type': 'application/json'}
+    response = requests.request("POST", conf.main.end_point.notification_url, headers=headers, data=res)
+    logger.info(response)
+    
 
 ##this is an auxiliary function for calling the train async
 def train(model:Model, data:pd.DataFrame,conf:DictConfig):
@@ -142,7 +206,9 @@ async def train_model(request: NotificationRequest,background_tasks: BackgroundT
         raise ConfigError(request.params)
     #load omegaconf parameters
     conf = OmegaConf.create(params)
-    dirpath = os.path.join(conf.main.main_folder,'weights',conf.main.name, str(conf.main.version))
+
+    model_name = get_model_name(conf) 
+    dirpath = os.path.join(conf.main.main_folder,'weights',model_name)
     # if we allow the retraining it will drop the existing folder
 
     if os.path.exists(dirpath):
@@ -159,9 +225,9 @@ async def train_model(request: NotificationRequest,background_tasks: BackgroundT
     except:
         raise ModelNotTrained(dirpath)
     
-    try:
-        data = model.get_historical_data()
-    except:
+    
+    data = model.get_historical_data()
+    if data is None:
         raise DataNotLoaded(conf)
     #Async job
     background_tasks.add_task(train, model,data, conf)
@@ -170,17 +236,20 @@ async def train_model(request: NotificationRequest,background_tasks: BackgroundT
 @app.get("/predict/")
 def predict(request: NotificationRequest):
     try:
-        params = replace_null_with_none(json.loads(request.params))
+        conf = replace_null_with_none(json.loads(request.params))
     except:
         raise ConfigError(request.params)
     #load inference parameters
-    inference_parameters = OmegaConf.create(params)
+    conf = OmegaConf.create(conf)
     
     ## load backbone model
+    model_name = get_model_name(conf) 
+    dirpath = os.path.join(conf.main.main_folder,'weights',model_name)
+
     try:
-        model = load_model(inference_parameters)
+        model = load_model(dirpath,conf)
     except:
-        raise ModelNotLoaded(params)
+        raise ModelNotLoaded(conf)
     
     logger.info('Model loading ok!')
     ## load data
@@ -190,20 +259,23 @@ def predict(request: NotificationRequest):
     try:
         data = model.get_historical_data()
     except:
-        raise DataNotLoaded(params)
+        raise DataNotLoaded(conf)
     logger.info('Data retrieving ok!')
 
     ## load timeseries to the model and load the correct forecasting method
-    model.prepare(data,inference_parameters)
+    model.prepare(data,conf)
     ## get the prediction
     try:
-        res = model.inference(inference_parameters)
+        res = model.inference(conf)
     except:
-        raise ForecastNotPossible(params)
+        raise ForecastNotPossible(conf)
     logger.info('Forecasting ok!')
 
     res.time = res.time.dt.strftime('%Y-%m-%d %H:%M:%S')
     res.prediction_time = res.prediction_time.dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    ##send the results to the logbook
+    send_to_logbook(res,conf)
 
     return {"forecast": res[['time','lag','y','y_low','y_median','y_high','prediction_time']].to_json(orient='records')}
 

@@ -6,6 +6,8 @@ from dsipts import TimeSeries, ITransformer ##here I expose only one model
 import os
 import numpy as np
 import logging
+#logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 @dataclass
 class Model:
@@ -25,22 +27,22 @@ class Model:
             bool: True if the procedure ends correctly otherwise False
     
         """
-        logging.info("###############LOADING DATA##################")
-        if '.csv' in self.end_point.url:
+        logger.info("###############LOADING DATA##################")
+        if '.csv' in self.end_point.data_url:
             try:
-                data = pd.read_csv(self.end_point.url)
+                data = pd.read_csv(self.end_point.data_url)
             except:
-                logging.info('Something went wrong while loading the csv')
-                return False
+                logger.info('Something went wrong while loading the csv')
+                return None
         else:
             pass
             #here we need to retrieve data from the DBL or from PLENITUDE platform or Digital Twin
             ## maybe using parameters as additional argument
         if 'time' not in data.columns:
-            logging.info('data must have the colum time')
+            logger.info('data must have the colum time')
             return False
         if 'y' not in data.columns:
-            logging.info('data must have the colum y')
+            logger.info('data must have the colum y')
             return False
         data.time = pd.to_datetime(data.time)
         #self.data = data
@@ -58,6 +60,11 @@ class Model:
         ts = TimeSeries(self.name)
         #ts.set_verbose(False)
 
+        if parameters.timeseries.transform is not None:
+            logger.info("Transforming data")
+            def f(x):
+                return eval(parameters.timeseries.transform)
+            data.y = data.y.apply(lambda x: f(x) )
 
         ts.load_signal(data,past_variables =parameters.timeseries.past_variables,
                        future_variables =parameters.timeseries.future_variables,
@@ -70,7 +77,7 @@ class Model:
         model_conf['future_channels'] = len(ts.future_variables)
         model_conf['embs'] = [ts.dataset[c].nunique() for c in ts.cat_var]
         model_conf['out_channels'] = len(ts.target_variables)
-        logging.info(parameters.split_params)
+        logger.info(parameters.split_params)
         model =  ITransformer(**model_conf,   
                                 optim_config = parameters.optim_config,
                                 scheduler_config =parameters.scheduler_config,verbose=True ) 
@@ -90,7 +97,7 @@ class Model:
             valid_loss = ts.train_model(split_params=split_params,**parameters.train_config)
             self.trained = True
         except:
-            logging.info('can not train model')
+            logger.info('can not train model')
             self.trained = False
             valid_loss = None
         if self.trained:
@@ -114,13 +121,29 @@ class Model:
         
         self.ts.dataset.time = self.ts.dataset.time.apply(lambda x: x.tz_localize(None))
         res = self.ts.inference(data = self.ts.dataset[self.ts.dataset.time.between(SD,ED,inclusive='left')],steps_in_future=self.train_config.model_configs.future_steps)
+        train_conf =  OmegaConf.load(os.path.join(self.main_folder,'config.yaml')) 
+        if train_conf.timeseries.inv_transform is not None:
+            logger.info("INVERSE TRANSFORM")
+            def f(x):
+                return eval(train_conf.timeseries.inv_transform)
+
+            res.y_median = res.y_median.apply(lambda x: f(x) )
+            res.y = res.y.apply(lambda x: f(x) )
+            res.y_low = res.y_low.apply(lambda x: f(x) )
+            res.y_high = res.y_high.apply(lambda x: f(x) )
+
         return res
     
     def prepare(self,data:str,inference_parameters:DictConfig)-> None:
         ts = TimeSeries(self.name)
-        #ts.set_verbose(False)
-
-        train_conf =  OmegaConf.load(os.path.join(self.main_folder,'config.yaml'))  
+        ts.set_verbose(True)
+        train_conf =  OmegaConf.load(os.path.join(self.main_folder,'config.yaml')) 
+        if train_conf.timeseries.transform is not None:
+            logger.info('TRANSFORM INPUTS')
+            def f(x):
+                return eval(train_conf.timeseries.transform)
+            data.y = data.y.apply(lambda x: f(x) )
+         
         ts.load_signal(data,past_variables =train_conf.timeseries.past_variables,
                        future_variables =train_conf.timeseries.future_variables,
                        target_variables =['y'],
@@ -130,12 +153,10 @@ class Model:
         self.ts = ts
         
         
-def load_model(conf:DictConfig)->Model:
-    dirpath = os.path.join(conf.main.main_folder,'weights',conf.main.name, str(conf.main.version))
+def load_model(dirpath:str,inference_parameters:DictConfig)->Model:
     train_config =  OmegaConf.load(os.path.join(dirpath,'config.yaml'))     
     model = Model(name=train_config.main.name,
-                end_point=train_config.main.end_point,
-                
+                end_point=inference_parameters.main.end_point,
                 main_folder=dirpath)
     model.train_config = train_config
     return model

@@ -1,18 +1,33 @@
 main:
-  name: toy
+  name: toy #name of the model
+  main_folder: /home/agobbi/Projects/Incube/forecaster/data/outputs #folder in which save the metadata of the model and the weights
+  version: 2 #version of the model
+  retrain: true #usually you don't want to overwrite a model, but you can force it
   end_point:
-    url: /home/agobbi/Projects/Incube/forecaster/data/toy.csv
-    parameters: {}
-  main_folder: /home/agobbi/Projects/Incube/forecaster/data/outputs
-  version: 1
-  retrain: true
+    data_url: /home/agobbi/Projects/Incube/forecaster/data/toy.csv # end point for the data. In this version only csv are supported. In the future will be implemented also a connector to the logbook
+    parameters: #some parameters required, maybe some more parameters are required for retrive data from the logbook
+      sourceId: "source_id"          # FILL THIS
+      buildingName: "building_id"    # FILL THIS
+      spaceName: "spaceName"         # FILL THIS
+      site: TEST                     # SITE (see delivery task 3.5)
+    notification_url: "http://160.40.51.98:8080/api/dbl/api/setEvent" # where send notification after the train is concluded
+
+
 
 timeseries:
-  enrich_cat: ['dow','hour']
-  past_variables: ['rain','temp']    
-  future_variables: ['rain','temp']
+  enrich_cat: ['dow','hour']         # categorical variable to add to the timeseries
+  past_variables: ['rain','temp']    # past covariates
+  future_variables: ['rain','temp']  # future known covariates
+  transform: 'np.log(500*x)-2'       # you can apply a transformation to the data for removing some spikes
+  inv_transform: 'np.exp(x+2)/500'
 
+
+## in qhat follows leave null the null, they depends on the loaded data. You can change the parameters with  ##CHANGE THIS 
 model_configs:
+  past_steps: 168              ##CHANGE THIS  168 steps in the past 
+  future_steps: 48             ##CHANGE THIS  48 steps in the future 
+  quantiles: [0.05,0.5,0.95]   ##CHANGE THIS  it can be [] or 3 values indicating the three quantiles to compute: [0.05,0.5,0.95]--> 90% CI and median
+
   d_model: 32
   n_head: 4
   hidden_size: 64
@@ -23,11 +38,7 @@ model_configs:
   persistence_weight: 0.010
   loss_type: 'l1'
   activation: torch.nn.PReLU
-  class_strategy: 'average' #projection/average/cls_token
-
-  past_steps: 168
-  future_steps: 48
-  quantiles: [0.05,0.5,0.95]
+  class_strategy: 'average' 
 
   #leave these null, depends on the dataset
   past_channels: null
@@ -45,8 +56,8 @@ optim_config:
 
   
 split_params:
-  perc_train: 0.5
-  perc_valid: 0.4
+  perc_train: 0.75  ##CHANGE THIS 
+  perc_valid: 0.2   ##CHANGE THIS 
   shift: 0
   skip_step: 1
 
@@ -60,7 +71,7 @@ split_params:
 
 train_config:
   batch_size: 64
-  max_epochs: 500
+  max_epochs: 150   ##CHANGE THIS 
   num_workers: 0
   auto_lr_find: true
   devices: [0]                   

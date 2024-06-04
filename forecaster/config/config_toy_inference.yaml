@@ -1,12 +1,27 @@
 main:
   name: toy
+  version: 2
   end_point: 
-    url: /home/agobbi/Projects/Incube/forecaster/data/toy.csv
-    parameters: {}
+    data_url: /home/agobbi/Projects/Incube/forecaster/data/toy.csv
+    parameters:
+      type: ForecastPowerGeneration ##FIX!
+      description: test
+      sourceId: "source_id"          # FILL THIS
+      buildingName: "building_id"    # FILL THIS
+      spaceName: "spaceName"         # FILL THIS
+      site: TEST
+      unitOfMeasure: "Watt"
+      property: "Power"
+      content_description: "Generation forecasting"
+
+    result_url: "http://160.40.51.98:8080/api/dbl/api/setEvent"
+    send_to_logbook: false
   main_folder: /home/agobbi/Projects/Incube/forecaster/data/outputs
-  version: 3
+
 
 inference:
   end_date: '2023-02-21 19:00:00'
-  start_date: '2022-11-21 19:00:00'
+  start_date: '2022-11-21 19:00:00' #'2023-02-21 19:00:00' #
+  #start_date: '2023-02-21 19:00:00' #
+
   load_last: True
