@@ -20,11 +20,11 @@ class Model:
     ts: TimeSeries = None
     train_config:DictConfig = None
 
-    def get_historical_data(self)-> bool:
+    def get_historical_data(self)-> pd.DataFrame:
         """Get data from endpoint defined in the init or from a csv
 
         Returns:
-            bool: True if the procedure ends correctly otherwise False
+            pd.DataFrame: historical data 
     
         """
         logger.info("###############LOADING DATA##################")
@@ -40,12 +40,11 @@ class Model:
             ## maybe using parameters as additional argument
         if 'time' not in data.columns:
             logger.info('data must have the colum time')
-            return False
+            return None
         if 'y' not in data.columns:
             logger.info('data must have the colum y')
-            return False
+            return None
         data.time = pd.to_datetime(data.time)
-        #self.data = data
         return data
     def train_model(self,data:pd.DataFrame,parameters:DictConfig)-> bool:
         """Train the predictive model
@@ -61,11 +60,12 @@ class Model:
         #ts.set_verbose(False)
 
         if parameters.timeseries.transform is not None:
+            ##we can apply a transformation for helping the model, depending on the data distribution
             logger.info("Transforming data")
             def f(x):
                 return eval(parameters.timeseries.transform)
             data.y = data.y.apply(lambda x: f(x) )
-
+        #load the data into the timeseries object
         ts.load_signal(data,past_variables =parameters.timeseries.past_variables,
                        future_variables =parameters.timeseries.future_variables,
                        target_variables =['y'],
@@ -78,6 +78,7 @@ class Model:
         model_conf['embs'] = [ts.dataset[c].nunique() for c in ts.cat_var]
         model_conf['out_channels'] = len(ts.target_variables)
         logger.info(parameters.split_params)
+        # for now we just use iTransformer in the future maybe other architectures
         model =  ITransformer(**model_conf,   
                                 optim_config = parameters.optim_config,
                                 scheduler_config =parameters.scheduler_config,verbose=True ) 
@@ -101,25 +102,30 @@ class Model:
             self.trained = False
             valid_loss = None
         if self.trained:
+            ## save the model
             ts.checkpoint_file_last = os.path.join(ts.dirpath ,'checkpoint.ckpt')
             ts.save(os.path.join(ts.dirpath ,'model'))
             
             with open(os.path.join(ts.dirpath,'config.yaml'),'w') as f:
                 f.write(OmegaConf.to_yaml(parameters))
-    
-            
-            
-            
+
         return self.trained, valid_loss
 
-    def inference(self,inference_parameters:DictConfig)-> bool:
+    def inference(self,inference_parameters:DictConfig)-> pd.DataFrame:
+        """inference phase
 
-        #self.ts = ts
-        
+        Args:
+            inference_parameters (DictConfig): inference parameters
+
+        Returns:
+            pd.DataFrame: results
+        """
+
+        ## compute the ranges
         SD = np.datetime64(pd.to_datetime(inference_parameters.inference.start_date)-self.ts.freq*self.train_config.model_configs.past_steps).astype('datetime64[s]')
         ED =  np.datetime64(pd.to_datetime(inference_parameters.inference.end_date)+self.ts.freq*self.train_config.model_configs.future_steps).astype('datetime64[s]')
-        
         self.ts.dataset.time = self.ts.dataset.time.apply(lambda x: x.tz_localize(None))
+        #inference on the data
         res = self.ts.inference(data = self.ts.dataset[self.ts.dataset.time.between(SD,ED,inclusive='left')],steps_in_future=self.train_config.model_configs.future_steps)
         train_conf =  OmegaConf.load(os.path.join(self.main_folder,'config.yaml')) 
         if train_conf.timeseries.inv_transform is not None:
@@ -134,7 +140,14 @@ class Model:
 
         return res
     
-    def prepare(self,data:str,inference_parameters:DictConfig)-> None:
+    def prepare(self,data:pd.DataFrame,inference_parameters:DictConfig)-> None:
+        """prepare the model for the inference
+
+        Args:
+            data (pd.DataFrame): dataframe to use 
+            inference_parameters (DictConfig): inference parameters
+
+        """
         ts = TimeSeries(self.name)
         ts.set_verbose(True)
         train_conf =  OmegaConf.load(os.path.join(self.main_folder,'config.yaml')) 
@@ -154,6 +167,9 @@ class Model:
         
         
 def load_model(dirpath:str,inference_parameters:DictConfig)->Model:
+    '''
+    Load the model from a directory
+    '''
     train_config =  OmegaConf.load(os.path.join(dirpath,'config.yaml'))     
     model = Model(name=train_config.main.name,
                 end_point=inference_parameters.main.end_point,

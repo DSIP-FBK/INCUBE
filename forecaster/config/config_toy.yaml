@@ -1,14 +1,14 @@
 main:
-  name: toy #name of the model
+  name: toy # name of the model
   main_folder: /home/agobbi/Projects/Incube/forecaster/data/outputs #folder in which save the metadata of the model and the weights
-  version: 2 #version of the model
+  version: 2 # version of the model
   retrain: true #usually you don't want to overwrite a model, but you can force it
   end_point:
     data_url: /home/agobbi/Projects/Incube/forecaster/data/toy.csv # end point for the data. In this version only csv are supported. In the future will be implemented also a connector to the logbook
-    parameters: #some parameters required, maybe some more parameters are required for retrive data from the logbook
-      sourceId: "source_id"          # FILL THIS
-      buildingName: "building_id"    # FILL THIS
-      spaceName: "spaceName"         # FILL THIS
+    parameters: # some parameters required, maybe some more parameters are required for retrieve data from the logbook
+      sourceId: "source_id"          # FILL THIS (see delivery task 3.5)
+      buildingName: "building_id"    # FILL THIS (see delivery task 3.5)
+      spaceName: "spaceName"         # FILL THIS (see delivery task 3.5)
       site: TEST                     # SITE (see delivery task 3.5)
     notification_url: "http://160.40.51.98:8080/api/dbl/api/setEvent" # where send notification after the train is concluded
 

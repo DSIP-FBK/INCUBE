@@ -16,20 +16,9 @@ from datetime import datetime
 
 app = FastAPI()
 
-
-########################################### ROUTINE DEFINITION ############################
-
-def replace_null_with_none(data):
-    if isinstance(data, dict):
-        return {k: replace_null_with_none(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [replace_null_with_none(item) for item in data]
-    elif data == 'NULL':
-        return None
-    else:
-        return data
-
-
+################################################################################################
+########################################### ERROR MANAGE DEFINITION ############################
+################################################################################################
 class NotificationRequest(BaseModel):
     params: str
 
@@ -105,28 +94,54 @@ async def forecast_not_possible_handler(request: Request, exc: ForecastNotPossib
         content={"message": "Forecasts not available", "content":traceback.format_exc()},
     )
 
+################################################################################################
+###########################################EOF definition#######################################
+################################################################################################
 
-###########################################EOF definition###################################################
+
+def replace_null_with_none(data):
+    """
+    workaround for parsing a json to a configdict
+    """
+    if isinstance(data, dict):
+        return {k: replace_null_with_none(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [replace_null_with_none(item) for item in data]
+    elif data == 'NULL':
+        return None
+    else:
+        return data
+
 
 def get_model_name(conf:DictConfig):
+    """
+    Define the name of the model combining unique values
+    """
     return f'{conf.main.end_point.parameters.buildingName}_{conf.main.end_point.parameters.spaceName}_{conf.main.end_point.parameters.sourceId}_{conf.main.name}_{conf.main.version}'
 
 def send_to_logbook(data:pd.DataFrame,conf:DictConfig):
+    """Send prediction to the logbook
+
+    Args:
+        data (pd.DataFrame): data to send to the logbook
+        conf (DictConfig): configurations containing the definition of the end point
+    """
     
     content = []
     for index, row in data.iterrows():
+        ##create the vector of the prediction: the non mandatory fields are in the metadata key
         content.append(dict(description= conf.main.end_point.parameters.content_description,
                             property = conf.main.end_point.parameters.property,
                             value = np.round(row['y'],2) ,
                             unitOfMeasure=conf.main.end_point.parameters.unitOfMeasure,
-                            refDateTime = row['time'],
+                            refDateTime = row['time'].strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
                             metadata = dict(y_low = np.round(row['y_low'],2),
                                         y_high = np.round(row['y_high'],2),
                                         lag = row['lag'],
-                                        prediction_time =row['prediction_time']
+                                        prediction_time =row['prediction_time'].strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
                             )
                             ))
-    
+    #compose the filan dictionary --> leave id empty the logbook will assign it during the uploading
     res = dict(id="",
                           type = conf.main.end_point.parameters.type,
                           description= conf.main.end_point.parameters.description,
@@ -140,6 +155,7 @@ def send_to_logbook(data:pd.DataFrame,conf:DictConfig):
 
     headers = {'Content-Type': 'application/json'}
     res = json.dumps({'site': conf.main.end_point.parameters.site,'event':res})
+    #for testing purposes you can avoid to send it to the logbook
     if conf.main.end_point.send_to_logbook:
         response = requests.request("POST", conf.main.end_point.result_url, headers=headers, data=res)
         logger.info(f'logbook sending response {response.json()}')
@@ -154,6 +170,12 @@ def read_root():
 
 
 def send_notification(conf:DictConfig,message:str):
+    """Send notification to the logbook when the training procedure is completed
+
+    Args:
+        conf (DictConfig): configuration with end point specification
+        message (str): message to send
+    """
     to_send = {
             "id": "",
             "type": "Notification",
@@ -176,7 +198,6 @@ def send_notification(conf:DictConfig,message:str):
         }
         
     res = json.dumps({'site': conf.main.end_point.parameters.site,'event':to_send})
-    
     headers = {'Content-Type': 'application/json'}
     response = requests.request("POST", conf.main.end_point.notification_url, headers=headers, data=res)
     logger.info(response)
@@ -184,9 +205,15 @@ def send_notification(conf:DictConfig,message:str):
 
 ##this is an auxiliary function for calling the train async
 def train(model:Model, data:pd.DataFrame,conf:DictConfig):
+    """function for training the model
+
+    Args:
+        model (Model): Model 
+        data (pd.DataFrame): data used for the train/validation phase
+        conf (DictConfig): configuration for the training phase
+    """
     
     logger.info("##########################START TRAINING#############################")
-
     trained, loss = model.train_model(data,conf)
     if trained:
         message = f'Model successfully trained with a validation loss of {np.round(loss,4)}'
@@ -199,18 +226,30 @@ def train(model:Model, data:pd.DataFrame,conf:DictConfig):
 
 
 @app.post("/train/")
-async def train_model(request: NotificationRequest,background_tasks: BackgroundTasks):
+async def train_model(request: NotificationRequest,background_tasks: BackgroundTasks)->dict:
+    """post API for training the model
+
+    Args:
+        request (NotificationRequest): request sent to the post
+        background_tasks (BackgroundTasks): here we need the asyncronous part
+
+    Raises:
+        ConfigError: configuration is not correct
+        ModelNotTrained: there are some errors while training the model
+        DataNotLoaded: data can not be retrieve
+
+    Returns:
+        dict: {"message": "Train sent"} --> if no exception are raised it returns a standard message
+    """
     try:
         params = replace_null_with_none(json.loads(request.params))
     except:
         raise ConfigError(request.params)
     #load omegaconf parameters
     conf = OmegaConf.create(params)
-
     model_name = get_model_name(conf) 
     dirpath = os.path.join(conf.main.main_folder,'weights',model_name)
     # if we allow the retraining it will drop the existing folder
-
     if os.path.exists(dirpath):
         if conf.main.retrain:
             shutil.rmtree(dirpath)
@@ -234,7 +273,27 @@ async def train_model(request: NotificationRequest,background_tasks: BackgroundT
     return {"message": "Train sent"}
 
 @app.get("/predict/")
-def predict(request: NotificationRequest):
+def predict(request: NotificationRequest)->json:
+    """get API for getting the prediction
+
+    Args:
+        request (NotificationRequest): request with the parameters for the inference part. See the examples
+        but keep in mind that end_time and start_time are important: if they are equal we obtain N predicted values
+        where N is the number of steps define during the training procedure. In are different, we get a lot of prediction,
+        because for a given timestamp I can have the predictions made in all the different steps before: in this case 
+        we introduce the variable lag: if lag=1 it means is that the values is the first predicted value, if lag=20 it means
+        that it is the 20-th value in the output vector.
+        
+
+    Raises:
+        ConfigError: configuration is not correct
+        ModelNotLoaded: model can not be loaded
+        DataNotLoaded: data can not be retrieving
+        ForecastNotPossible: there are some problems during the inference step
+
+    Returns:
+        json: resulting json with a unique key 'forecast' with all the variables
+    """
     try:
         conf = replace_null_with_none(json.loads(request.params))
     except:
@@ -271,11 +330,13 @@ def predict(request: NotificationRequest):
         raise ForecastNotPossible(conf)
     logger.info('Forecasting ok!')
 
-    res.time = res.time.dt.strftime('%Y-%m-%d %H:%M:%S')
-    res.prediction_time = res.prediction_time.dt.strftime('%Y-%m-%d %H:%M:%S')
+  
 
     ##send the results to the logbook
     send_to_logbook(res,conf)
 
+    # transform time for re the result
+    res.time = res.time.dt.strftime('%Y-%m-%d %H:%M:%S')
+    res.prediction_time = res.prediction_time.dt.strftime('%Y-%m-%d %H:%M:%S')
     return {"forecast": res[['time','lag','y','y_low','y_median','y_high','prediction_time']].to_json(orient='records')}
 

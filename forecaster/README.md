@@ -45,7 +45,8 @@ The same functionalities are available using the docker container described in t
 ## Docker
 
 
-After downloading the repo, go in the `service` folder and build the image. The process will try to accesses to the FBK gitlab, make sure to have the `.env` file (ask to agobbi@fbk.eu)
+After downloading the repo, go in the `service` folder and build the image. The process will try to accesses to the FBK gitlab, make sure to have the `.env` file (ask to agobbi@fbk.eu).
+The dockerfile will mount a volume for read `csv` data and save the models.
 ```
 # get .env from FBK  
 # get data from FBK (if csv end point will be used)
@@ -77,6 +78,8 @@ print(response.json())
 Once the model is trained you can get the results:
 ```
 import requests
+import json
+import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 url = "http://0.0.0.0:80/predict/"  #API for getting the results
 
@@ -94,10 +97,10 @@ You can plot also some statistics and an example of the results to be used insid
 ```
 import matplotlib.pyplot as plt
 import numpy as np
-ID=100
+ID=2024
 sample = res[res.prediction_time ==res.prediction_time.unique()[ID]]
-plt.plot(sample.lag,sample.y,label ='real')
-plt.plot(sample.lag,sample.y_median,'o-',label ='predicted')
+plt.plot(sample.lag,sample.y,label ='real',color='orange')
+plt.plot(sample.lag,sample.y_median,'o-',label ='predicted',color='blue')
 plt.fill_between(sample.lag, sample.y_low, sample.y_high, color='lightblue', alpha=0.5,label='95% CI')
 plt.title(f'Real vs prediction for prediction a time {res.prediction_time.unique()[ID]} ')
 plt.xlabel('Lag')
@@ -114,6 +117,7 @@ plt.ylabel('MAE')
 plt.show()
 ```
 
-
+## Final notes
+In the branch `prototype1` it is possible to use only `.csv` data as endpoint. No real data are available in the logbook (or at least not useful data for training a forecasting algorithm). The `.csv` dataset must have at least two columns: one called `time` that identifies the time. It can be a date, a datetime or an integer. The other column is `y` that represents the target variables. Covariates can be controlled using the fields in the training configuration under the label `timeseries`. 
 
 
