@@ -46,7 +46,7 @@ The same functionalities are available using the docker container described in t
 
 
 After downloading the repo, go in the `service` folder and build the image. The process will try to accesses to the FBK gitlab, make sure to have the `.env` file (ask to agobbi@fbk.eu).
-The dockerfile will mount a volume for read `csv` data and save the models.
+The dockerfile will mount a volume for read `csv` data and save the models please be sure to mount the correct volume in `service/docker-compose.yaml`
 ```
 # get .env from FBK  
 # get data from FBK (if csv end point will be used)
