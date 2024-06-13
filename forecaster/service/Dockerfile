@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 ARG TOKEN_DSIPTS
 ENV TOKEN_DSIPTS=${TOKEN_DSIPTS}
 
-RUN pip install --force dsipts --index-url ${TOKEN_DSIPTS}
+RUN pip install --force dsipts==1.1.0 --index-url ${TOKEN_DSIPTS}
 
 # 
 

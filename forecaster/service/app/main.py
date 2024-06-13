@@ -273,7 +273,7 @@ async def train_model(request: NotificationRequest,background_tasks: BackgroundT
     return {"message": "Train sent"}
 
 @app.get("/predict/")
-def predict(request: NotificationRequest)->json:
+def predict(request: NotificationRequest):
     """get API for getting the prediction
 
     Args:
